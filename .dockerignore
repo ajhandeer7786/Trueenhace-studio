@@ -1,0 +1,10 @@
+.git
+.github
+node_modules/
+.playwright-cli/
+data/outputs/
+data/uploads/
+data/test_patches/
+*.log
+.env*
+!dist/

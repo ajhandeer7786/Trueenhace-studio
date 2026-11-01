@@ -1,0 +1,6 @@
+{
+  "name": "TrueEnhance AI Studio",
+  "description": "Professional AI Image & Video Enhancement studio featuring real AI upscaling, video stabilization, denoising, deblurring, and frame interpolation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
