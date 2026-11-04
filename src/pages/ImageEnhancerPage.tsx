@@ -57,7 +57,9 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
   const [deblur, setDeblur] = useState<boolean>(true);
   const [deblurLevel, setDeblurLevel] = useState<number>(3);
   const [faceRestore, setFaceRestore] = useState<boolean>(true);
-  const [engine, setEngine] = useState<'auto' | 'portrait-restorer' | 'realesrgan-x4plus' | 'realesrgan-compact' | 'realesrgan' | 'gemini-ai' | 'neural-lanczos'>('portrait-restorer');
+  const [faceFidelity, setFaceFidelity] = useState<number>(70);
+  const [faceModel, setFaceModel] = useState<'gfpgan-v1.4' | 'codeformer' | 'auto'>('auto');
+  const [engine, setEngine] = useState<'auto' | 'gfpgan' | 'portrait-restorer' | 'realesrgan-x4plus' | 'realesrgan-compact' | 'realesrgan' | 'gemini-ai' | 'neural-lanczos'>('auto');
 
   // Processing & Result state
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -162,6 +164,8 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
       deblur,
       deblurLevel,
       faceRestore,
+      faceFidelity,
+      faceModel,
       engine,
     };
 
@@ -410,23 +414,58 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
               )}
             </div>
 
-            {/* Face Restoration */}
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-              <div>
-                <label htmlFor="face-toggle" className="text-xs font-semibold text-slate-300 block cursor-pointer">
-                  Face &amp; Portrait Enhancement
-                </label>
-                <span className="text-[11px] text-slate-500 block">
-                  Refines facial contours, skin texture, and eye clarity
-                </span>
+            {/* Genuine Face Restoration (GFPGAN Prior) */}
+            <div className="pt-2 border-t border-slate-800/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label htmlFor="face-toggle" className="text-xs font-semibold text-slate-200 block cursor-pointer flex items-center gap-1.5">
+                    <span>GFPGAN Face &amp; Portrait AI Restoration</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      MagicHour Quality
+                    </span>
+                  </label>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">
+                    Reconstructs eyes, pupils, lips, skin pores, and facial contours
+                  </span>
+                </div>
+                <input
+                  id="face-toggle"
+                  type="checkbox"
+                  checked={faceRestore}
+                  onChange={(e) => setFaceRestore(e.target.checked)}
+                  className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
+                />
               </div>
-              <input
-                id="face-toggle"
-                type="checkbox"
-                checked={faceRestore}
-                onChange={(e) => setFaceRestore(e.target.checked)}
-                className="w-4 h-4 accent-cyan-400 cursor-pointer rounded"
-              />
+
+              {faceRestore && (
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-300">
+                      Identity Preservation vs Restoration:
+                    </span>
+                    <span className="font-mono text-xs font-bold text-indigo-400">
+                      {faceFidelity}% Likeness
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="20"
+                    max="95"
+                    step="5"
+                    value={faceFidelity}
+                    onChange={(e) => setFaceFidelity(Number(e.target.value))}
+                    className="w-full h-1 bg-slate-800 rounded accent-indigo-400 cursor-pointer"
+                    aria-label="Face restoration fidelity balance"
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Maximum Sharpening (Heavy Blur)</span>
+                    <span className="text-indigo-300 font-semibold">
+                      {faceFidelity >= 80 ? 'Subtle (High Likeness)' : faceFidelity >= 60 ? 'MagicHour Balanced' : 'Strong Reconstruction'}
+                    </span>
+                    <span>Preserve Identity (Natural Skin)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* AI Engine Selection */}
@@ -440,9 +479,9 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
                 onChange={(e) => setEngine(e.target.value as any)}
                 className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 cursor-pointer"
               >
-                <option value="portrait-restorer">Portrait &amp; Face AI Restorer (Natural Skin, Clear Eyes, Anti-Warp)</option>
-                <option value="auto">Auto-Select (Optimized Model &amp; Face Guard)</option>
-                <option value="realesrgan-x4plus">Real-ESRGAN-x4plus (Flagship 67MB RRDBNet • Maximum Detail)</option>
+                <option value="auto">Auto-Select (Real-ESRGAN + GFPGAN Face Prior)</option>
+                <option value="gfpgan">GFPGAN v1.4 + Real-ESRGAN (MagicHour Face Restoration)</option>
+                <option value="realesrgan-x4plus">Real-ESRGAN-x4plus (Flagship 67MB RRDBNet • Maximum Scene Detail)</option>
                 <option value="realesrgan-compact">Real-ESRGAN-General-x4v3 (Compact 4.8MB • Fast)</option>
                 <option value="neural-lanczos">Lanczos3 Spatial Resizing (Non-AI Fallback)</option>
                 <option value="gemini-ai">Gemini 3.1 Flash Vision Model (Cloud AI)</option>
@@ -541,7 +580,11 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
                   </span>
                   {completedJob.diagnostics && (
                     <span className="text-slate-400">
-                      Tiles: <strong className="text-cyan-300">{completedJob.diagnostics.tilesCount}</strong> • Duration: <strong className="text-cyan-300">{(completedJob.diagnostics.inferenceTimeMs / 1000).toFixed(1)}s</strong>
+                      Tiles: <strong className="text-cyan-300">{completedJob.diagnostics.tilesCount}</strong>
+                      {completedJob.diagnostics.faceCount !== undefined && completedJob.diagnostics.faceCount > 0 && (
+                        <> • Faces: <strong className="text-indigo-300">{completedJob.diagnostics.faceCount}</strong> ({completedJob.diagnostics.faceFidelityApplied ?? 70}% Likeness)</>
+                      )}
+                      {' '}• Duration: <strong className="text-cyan-300">{(completedJob.diagnostics.inferenceTimeMs / 1000).toFixed(1)}s</strong>
                     </span>
                   )}
                 </div>

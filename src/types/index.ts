@@ -13,7 +13,9 @@ export interface ImageEnhanceOptions {
   deblur: boolean;
   deblurLevel?: number; // 1 to 5
   faceRestore: boolean;
-  engine: 'auto' | 'portrait-restorer' | 'realesrgan-x4plus' | 'realesrgan-compact' | 'realesrgan' | 'gemini-ai' | 'neural-lanczos' | 'remote-gpu';
+  faceFidelity?: number; // 0 to 100 (default 70 for MagicHour balance between detail and identity)
+  faceModel?: 'gfpgan-v1.4' | 'codeformer' | 'auto';
+  engine: 'auto' | 'gfpgan' | 'portrait-restorer' | 'realesrgan-x4plus' | 'realesrgan-compact' | 'realesrgan' | 'gemini-ai' | 'neural-lanczos' | 'remote-gpu';
 }
 
 export interface VideoEnhanceOptions {
@@ -53,6 +55,10 @@ export interface ProcessingJob {
     inputStats?: { min: number; max: number; mean: number };
     outputStats?: { min: number; max: number; mean: number };
     edgeGainPercent?: number;
+    faceCount?: number;
+    faceInferenceMs?: number;
+    faceModelUsed?: string;
+    faceFidelityApplied?: number;
   };
 }
 
@@ -88,6 +94,10 @@ export interface SystemCapabilities {
   freeMemoryMb: number;
   geminiApiConfigured: boolean;
   realEsrganModelAvailable: boolean;
+  faceRestorationAvailable: boolean;
+  faceRestorationModel?: string;
+  faceModelCached?: boolean;
+  faceModelSizeMb?: number;
   activeImageModel?: ActiveImageModelInfo;
   availableModels?: ModelInfo[];
   gpuAvailable: boolean;

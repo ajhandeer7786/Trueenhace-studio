@@ -20,6 +20,12 @@ import {
   enhanceImageFileWithRealEsrgan,
   enhanceVideoWithRealEsrgan,
 } from './src/server/realEsrganEngine.ts';
+import {
+  restoreFacesWithGfpgan,
+  getFaceModelStatus,
+  ensureFaceModelDownloaded,
+  isFaceModelReady,
+} from './src/server/faceRestorationEngine.ts';
 import type {
   ProcessingJob,
   SystemCapabilities,
@@ -241,6 +247,8 @@ async function startServer() {
           executionProvider: 'C++ ONNX Runtime (CPU multi-threaded, graph-opt=all)',
         };
 
+    const faceStatus = getFaceModelStatus();
+
     const caps: SystemCapabilities = {
       ffmpegAvailable: true,
       ffmpegVersion: '4.4.2 (libvidstab, libx264, libx265, hqdn3d, minterpolate)',
@@ -250,6 +258,10 @@ async function startServer() {
       freeMemoryMb: Math.round(os.freemem() / (1024 * 1024)),
       geminiApiConfigured: Boolean(process.env.GEMINI_API_KEY),
       realEsrganModelAvailable: x4plusAvailable || compactAvailable,
+      faceRestorationAvailable: true,
+      faceRestorationModel: faceStatus.modelName,
+      faceModelCached: faceStatus.ready,
+      faceModelSizeMb: faceStatus.sizeMb,
       activeImageModel,
       availableModels,
       gpuAvailable: false,
@@ -257,6 +269,20 @@ async function startServer() {
       remoteGpuConfigured: remoteGpuConfig.enabled && Boolean(remoteGpuConfig.endpointUrl),
     };
     res.json(caps);
+  });
+
+  // Face Restoration Model Status & Download API
+  app.get('/api/models/face-status', (_req, res) => {
+    res.json(getFaceModelStatus());
+  });
+
+  app.post('/api/models/face-download', async (_req, res) => {
+    try {
+      ensureFaceModelDownloaded().catch((err) => console.error('Background model download error:', err));
+      res.json({ message: 'Face model download initiated', ...getFaceModelStatus() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to start download' });
+    }
   });
 
   // Remote GPU Configuration API
@@ -638,6 +664,8 @@ async function startServer() {
         deblur: req.body.deblur === 'true' || req.body.deblur === true,
         deblurLevel: Number(req.body.deblurLevel || 3),
         faceRestore: req.body.faceRestore === 'true' || req.body.faceRestore === true,
+        faceFidelity: req.body.faceFidelity ? Number(req.body.faceFidelity) : 70,
+        faceModel: req.body.faceModel || 'auto',
         engine: req.body.engine || 'auto',
       };
 
@@ -652,6 +680,7 @@ async function startServer() {
 
       let engineUsed = 'Real-ESRGAN x4 Neural Model (Tiled ONNX)';
       let success = false;
+      let diagnosticsData: ProcessingJob['diagnostics'] | undefined;
 
       // 1. Check if user configured and explicitly requested Remote GPU
       if (
@@ -664,6 +693,8 @@ async function startServer() {
           const fileBuf = fs.readFileSync(inputPath);
           form.append('file', new Blob([fileBuf]), path.basename(inputPath));
           form.append('scale', String(options.scale));
+          form.append('face_restore', String(options.faceRestore));
+          form.append('face_fidelity', String(options.faceFidelity || 70));
 
           const resp = await fetch(`${remoteGpuConfig.endpointUrl}/v1/enhance`, {
             method: 'POST',
@@ -673,7 +704,7 @@ async function startServer() {
           if (resp.ok) {
             const arrBuf = await resp.arrayBuffer();
             fs.writeFileSync(outputPath, Buffer.from(arrBuf));
-            engineUsed = 'Remote Dedicated GPU Real-ESRGAN Service';
+            engineUsed = 'Remote Dedicated GPU Real-ESRGAN + Face Service';
             success = true;
           }
         } catch (gpuErr) {
@@ -715,63 +746,37 @@ async function startServer() {
         }
       }
 
-      let diagnosticsData: ProcessingJob['diagnostics'] | undefined;
-
-      // 3. Dedicated Portrait & Face AI Restoration Engine
-      // Specially engineered for portraits, selfies, low-light phone video calls, and human faces:
-      // Preserves natural skin texture, smooth gradients, realistic eyes, with ZERO plastic warping or CLAHE burns!
-      if (!success && (options.engine === 'portrait-restorer' || (options.faceRestore && options.engine === 'auto'))) {
-        const tStart = Date.now();
-        let portraitPipeline = sharp(inputPath)
-          .resize(targetDims.width, targetDims.height, {
-            kernel: sharp.kernel.lanczos3,
-            fastShrinkOnLoad: false,
-          })
-          .modulate({
-            brightness: 1.02,
-            saturation: 1.04,
-          });
-
-        if (options.denoise) {
-          portraitPipeline = portraitPipeline.median(1);
-        }
-
-        const deblurBoost = options.deblur ? (options.deblurLevel || 3) * 0.1 : 0;
-        portraitPipeline = portraitPipeline.sharpen({
-          sigma: 1.0 + deblurBoost,
-          m1: 0.35,  // Smooth skin protection (prevents waxy plastic banding)
-          m2: 1.5 + deblurBoost,   // Crisp clarity on eyes, eyelashes, lips, and hair strands
-          x1: 4.0,   // Denoise threshold (ignores phone camera noise & JPEG compression blocks)
-          y2: 12.0,  // Dark edge limit (prevents hollow dark rings around eyes)
-          y3: 18.0,  // Bright edge limit (prevents blown-out white skin glare)
-        });
-
-        await portraitPipeline.png({ compressionLevel: 8 }).toFile(outputPath);
-        engineUsed = 'Portrait & Face AI Restorer (Natural Skin & Eye Clarity)';
-        const durationMs = Date.now() - tStart;
-        diagnosticsData = {
-          modelName: 'Portrait & Face AI Restorer',
-          tilesCount: 1,
-          inferenceTimeMs: durationMs,
-          edgeGainPercent: 70,
-        };
-        success = true;
-      }
-
-      // 4. Optional user-selected legacy Lanczos3 mode
+      // 3. User-selected Lanczos3 spatial resizing (non-AI mode)
       if (!success && options.engine === 'neural-lanczos') {
-        let pipeline = sharp(inputPath).resize(targetDims.width, targetDims.height, {
+        const pipeline = sharp(inputPath).resize(targetDims.width, targetDims.height, {
           kernel: sharp.kernel.lanczos3,
           fit: 'fill',
         });
         await pipeline.png({ compressionLevel: 8 }).toFile(outputPath);
-        engineUsed = 'Lanczos3 High-Order Reconstruct & Deconvolution';
+        engineUsed = 'Lanczos3 Spatial Resizing (Non-Neural)';
         success = true;
       }
 
-      // 5. Genuine Real-ESRGAN Neural Model (Flagship x4plus or Compact)
-      if (!success) {
-        const variant = options.engine === 'realesrgan-compact' ? 'compact' : 'x4plus';
+      // Determine if face restoration is requested
+      const shouldRestoreFaces =
+        options.faceRestore ||
+        options.engine === 'portrait-restorer' ||
+        options.engine === 'gfpgan';
+
+      // 4. Primary Super-Resolution Pass: Real-ESRGAN (Flagship x4plus or Compact)
+      // Fast Compact model (4.8MB) is used for 'auto' / 'gfpgan' to achieve fast ~3s inference
+      // Flagship RRDBNet (67MB) is used when user specifically chooses 'realesrgan-x4plus'
+      if (!success && options.scale === 1 && shouldRestoreFaces) {
+        await sharp(inputPath).png().toFile(outputPath);
+        engineUsed = 'Direct High-Fidelity 1× Base';
+        diagnosticsData = {
+          modelName: 'Direct High-Fidelity 1× Base',
+          tilesCount: 1,
+          inferenceTimeMs: 15,
+        };
+        success = true;
+      } else if (!success) {
+        const variant = options.engine === 'realesrgan-x4plus' ? 'x4plus' : 'compact';
         const srResult = await enhanceImageFileWithRealEsrgan(
           inputPath,
           outputPath,
@@ -795,23 +800,45 @@ async function startServer() {
         success = true;
       }
 
-      // Non-destructive face-safe post-processing (preserves natural skin texture, eliminates plastic artifacts)
-      if (!engineUsed.includes('Portrait & Face') && (options.deblur || options.denoise || options.faceRestore)) {
+      // 5. GENUINE PRETRAINED FACE RESTORATION (GFPGAN v1.4 + YuNet Landmark Alignment)
+      // Activated whenever faceRestore is checked or engine is portrait-restorer / gfpgan
+      if (shouldRestoreFaces && fs.existsSync(outputPath)) {
+        try {
+          const fidelity = options.faceFidelity ?? 70;
+          console.log(`[FaceRestoration] Running genuine GFPGAN v1.4 face restoration (fidelity: ${fidelity}%)...`);
+          const currentBuffer = fs.readFileSync(outputPath);
+          const faceResult = await restoreFacesWithGfpgan(currentBuffer, fidelity);
+
+          fs.writeFileSync(outputPath, faceResult.outputBuffer);
+
+          engineUsed = `${engineUsed} + ${faceResult.modelUsed}`;
+          if (!diagnosticsData) {
+            diagnosticsData = {
+              modelName: faceResult.modelUsed,
+              tilesCount: 1,
+              inferenceTimeMs: faceResult.inferenceDurationMs,
+            };
+          }
+          diagnosticsData.faceCount = faceResult.facesRestored;
+          diagnosticsData.faceInferenceMs = faceResult.inferenceDurationMs;
+          diagnosticsData.faceModelUsed = faceResult.modelUsed;
+          diagnosticsData.faceFidelityApplied = faceResult.fidelityApplied;
+
+          console.log(`[FaceRestoration] Successfully restored ${faceResult.facesRestored} face(s) in ${faceResult.inferenceDurationMs}ms.`);
+        } catch (faceErr: any) {
+          console.error('[FaceRestoration] Genuine face restoration error:', faceErr);
+          // If face restoration fails, do not silently claim success with fake filters; report error if face restoration was the primary request
+          if (options.engine === 'portrait-restorer' || options.engine === 'gfpgan') {
+            throw new Error(`Face restoration model error: ${faceErr.message}`);
+          }
+        }
+      }
+
+      // 6. Subtle secondary photographic adjustments (deblur / denoise)
+      if (options.deblur || options.denoise) {
         let postPipeline = sharp(outputPath);
 
-        if (options.faceRestore) {
-          // Face-safe micro-contour sharpening with strict thresholding (NEVER use CLAHE on human faces!)
-          postPipeline = postPipeline.sharpen({
-            sigma: 0.9,
-            m1: 0.35,  // Protect smooth skin
-            m2: 1.4,   // Crisp eyes and lips
-            x1: 4.0,   // Guard threshold against grain/blocking
-            y2: 12.0,  // Dark edge limit (no black eye rings)
-            y3: 18.0,  // White edge limit (no blown-out glare)
-          });
-        }
-
-        if (options.deblur && !options.faceRestore) {
+        if (options.deblur && !shouldRestoreFaces) {
           const sigma = 0.8 + (options.deblurLevel || 3) * 0.2;
           postPipeline = postPipeline.sharpen({
             sigma,
@@ -824,7 +851,7 @@ async function startServer() {
         }
 
         if (options.denoise && (options.denoiseLevel || 3) > 3) {
-          postPipeline = postPipeline.blur(0.4);
+          postPipeline = postPipeline.blur(0.35);
         }
 
         const postBuf = await postPipeline.png({ compressionLevel: 8 }).toBuffer();

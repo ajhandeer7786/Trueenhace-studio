@@ -1,1 +1,125 @@
-[]
+[
+  {
+    "id": "img-1793809848562-288229",
+    "type": "image",
+    "filename": "img-1793809848562-288229_enhanced_417x1066.png",
+    "originalName": "Girl1_255s_da71450f.jpg",
+    "originalSize": 58965,
+    "originalDimensions": {
+      "width": 417,
+      "height": 1066
+    },
+    "enhancedDimensions": {
+      "width": 417,
+      "height": 1066
+    },
+    "enhancedSize": 806618,
+    "status": "completed",
+    "progress": 100,
+    "createdAt": "2026-11-04T16:30:56.954Z",
+    "completedAt": "2026-11-04T16:30:56.954Z",
+    "inputUrl": "/api/files/input/upload-1793809848559-548272043.jpg",
+    "outputUrl": "/api/files/output/img-1793809848562-288229_enhanced_417x1066.png",
+    "optionsSummary": "1× Scale (Real-ESRGAN) + Face Restoration",
+    "engineUsed": "Direct High-Fidelity 1× Base + GFPGAN v1.4 Neural Face Prior (512x512) + YuNet Alignment",
+    "diagnostics": {
+      "modelName": "Direct High-Fidelity 1× Base",
+      "tilesCount": 1,
+      "inferenceTimeMs": 15,
+      "faceCount": 2,
+      "faceInferenceMs": 8348,
+      "faceModelUsed": "GFPGAN v1.4 Neural Face Prior (512x512) + YuNet Alignment",
+      "faceFidelityApplied": 75
+    }
+  },
+  {
+    "id": "img-1793809816018-154142",
+    "type": "image",
+    "filename": "img-1793809816018-154142_enhanced_834x2132.png",
+    "originalName": "Girl1_255s_da71450f.jpg",
+    "originalSize": 58965,
+    "originalDimensions": {
+      "width": 417,
+      "height": 1066
+    },
+    "enhancedDimensions": {
+      "width": 500,
+      "height": 1280
+    },
+    "enhancedSize": 1153182,
+    "status": "completed",
+    "progress": 100,
+    "createdAt": "2026-11-04T16:30:31.765Z",
+    "completedAt": "2026-11-04T16:30:31.765Z",
+    "inputUrl": "/api/files/input/upload-1793809816009-581438673.jpg",
+    "outputUrl": "/api/files/output/img-1793809816018-154142_enhanced_834x2132.png",
+    "optionsSummary": "2× Scale (Real-ESRGAN) + Face Restoration",
+    "engineUsed": "Real-ESRGAN-General-x4v3 (4.8MB Compact) + GFPGAN v1.4 Neural Face Prior (512x512) + YuNet Alignment",
+    "diagnostics": {
+      "modelName": "Real-ESRGAN-General-x4v3 (4.8MB Compact)",
+      "tilesCount": 21,
+      "inferenceTimeMs": 9046,
+      "inputStats": {
+        "min": 0,
+        "max": 1,
+        "mean": 0.4917359158286673
+      },
+      "outputStats": {
+        "min": -0.11470870673656464,
+        "max": 1.1588599681854248,
+        "mean": 0.4933935203281749,
+        "std": 0.22
+      },
+      "edgeGainPercent": 65,
+      "faceCount": 1,
+      "faceInferenceMs": 6270,
+      "faceModelUsed": "GFPGAN v1.4 Neural Face Prior (512x512) + YuNet Alignment",
+      "faceFidelityApplied": 70
+    }
+  },
+  {
+    "id": "img-1793809569528-50810",
+    "type": "image",
+    "filename": "img-1793809569528-50810_enhanced_834x2132.png",
+    "originalName": "Girl1_255s_da71450f.jpg",
+    "originalSize": 58965,
+    "originalDimensions": {
+      "width": 417,
+      "height": 1066
+    },
+    "enhancedDimensions": {
+      "width": 500,
+      "height": 1280
+    },
+    "enhancedSize": 1178905,
+    "status": "completed",
+    "progress": 100,
+    "createdAt": "2026-11-04T16:28:26.628Z",
+    "completedAt": "2026-11-04T16:28:26.628Z",
+    "inputUrl": "/api/files/input/upload-1793809569520-124615178.jpg",
+    "outputUrl": "/api/files/output/img-1793809569528-50810_enhanced_834x2132.png",
+    "optionsSummary": "2× Scale (x4plus Flagship) + Face Restoration",
+    "engineUsed": "Real-ESRGAN-x4plus (67MB RRDBNet) + GFPGAN v1.4 Neural Face Prior (512x512) + YuNet Alignment",
+    "diagnostics": {
+      "modelName": "Real-ESRGAN-x4plus (67MB RRDBNet)",
+      "tilesCount": 21,
+      "inferenceTimeMs": 126498,
+      "inputStats": {
+        "min": 0,
+        "max": 1,
+        "mean": 0.4917359158286673
+      },
+      "outputStats": {
+        "min": 0,
+        "max": 1,
+        "mean": 0.49407118594458926,
+        "std": 0.22
+      },
+      "edgeGainPercent": 65,
+      "faceCount": 2,
+      "faceInferenceMs": 9612,
+      "faceModelUsed": "GFPGAN v1.4 Neural Face Prior (512x512) + YuNet Alignment",
+      "faceFidelityApplied": 70
+    }
+  }
+]

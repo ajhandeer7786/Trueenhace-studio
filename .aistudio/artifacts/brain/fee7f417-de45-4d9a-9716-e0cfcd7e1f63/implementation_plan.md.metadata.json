@@ -1,0 +1,6 @@
+{
+  "summary": "Implementation plan for integrating genuine pretrained AI face restoration (GFPGAN / CodeFormer) alongside Real-ESRGAN, with identity preservation, dual local ONNX / remote GPU execution, and zero build bloat.",
+  "updatedAt": "2026-11-04T16:11:19.640165839Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

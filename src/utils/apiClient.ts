@@ -113,6 +113,8 @@ export async function enhanceImage(
   formData.append('deblur', String(options.deblur));
   if (options.deblurLevel) formData.append('deblurLevel', String(options.deblurLevel));
   formData.append('faceRestore', String(options.faceRestore));
+  if (options.faceFidelity !== undefined) formData.append('faceFidelity', String(options.faceFidelity));
+  if (options.faceModel) formData.append('faceModel', options.faceModel);
   formData.append('engine', options.engine);
 
   const res = await fetchWithRetry('/api/enhance/image', {
@@ -121,6 +123,31 @@ export async function enhanceImage(
   });
 
   return parseJsonResponse<ProcessingJob>(res, 'Image enhancement failed');
+}
+
+export async function fetchFaceModelStatus(): Promise<{
+  ready: boolean;
+  downloading: boolean;
+  progress: number;
+  error: string | null;
+  sizeMb: number;
+  modelName: string;
+}> {
+  const res = await fetch('/api/models/face-status');
+  return parseJsonResponse(res, 'Failed to fetch face model status');
+}
+
+export async function triggerFaceModelDownload(): Promise<{
+  message: string;
+  ready: boolean;
+  downloading: boolean;
+  progress: number;
+  error: string | null;
+  sizeMb: number;
+  modelName: string;
+}> {
+  const res = await fetch('/api/models/face-download', { method: 'POST' });
+  return parseJsonResponse(res, 'Failed to initiate model download');
 }
 
 export async function startVideoEnhance(

@@ -19,6 +19,7 @@ import {
   Code,
   Download,
   FileArchive,
+  Sparkles,
 } from 'lucide-react';
 import { PWAInstallButton } from '../components/PWAInstallButton.tsx';
 import { formatBytes } from '../utils/enhancerLogic.ts';
@@ -27,6 +28,8 @@ import {
   getRemoteGpuConfig,
   saveRemoteGpuConfig,
   clearAllHistory,
+  fetchFaceModelStatus,
+  triggerFaceModelDownload,
 } from '../utils/apiClient.ts';
 import type { SystemCapabilities, RemoteGpuConfig } from '../types/index.ts';
 
@@ -51,11 +54,49 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [isWiping, setIsWiping] = useState<boolean>(false);
   const [wipeNotice, setWipeNotice] = useState<string | null>(null);
 
+  // Face model status
+  const [faceModelStatus, setFaceModelStatus] = useState<{
+    ready: boolean;
+    downloading: boolean;
+    progress: number;
+    error: string | null;
+    sizeMb: number;
+    modelName: string;
+  } | null>(null);
+  const [isTriggeringDownload, setIsTriggeringDownload] = useState(false);
+
   useEffect(() => {
     getRemoteGpuConfig()
       .then((cfg) => setRemoteGpu(cfg))
       .catch((e) => console.warn('Could not load remote GPU config', e));
+
+    fetchFaceModelStatus()
+      .then((st) => setFaceModelStatus(st))
+      .catch((e) => console.warn('Could not load face model status', e));
   }, []);
+
+  const handleDownloadFaceModel = async () => {
+    setIsTriggeringDownload(true);
+    try {
+      await triggerFaceModelDownload();
+      const interval = setInterval(async () => {
+        try {
+          const st = await fetchFaceModelStatus();
+          setFaceModelStatus(st);
+          if (st.ready || st.error || (!st.downloading && st.progress === 100)) {
+            clearInterval(interval);
+            setIsTriggeringDownload(false);
+          }
+        } catch {
+          clearInterval(interval);
+          setIsTriggeringDownload(false);
+        }
+      }, 1000);
+    } catch (err: any) {
+      alert(`Download trigger error: ${err.message}`);
+      setIsTriggeringDownload(false);
+    }
+  };
 
   const handleSaveGpu = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,6 +294,75 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Genuine Face Restoration Model Status (GFPGAN v1.4 + YuNet) */}
+        <div className="p-5 rounded-xl bg-slate-950 border border-indigo-500/30 space-y-4 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-bold text-slate-200 flex items-center gap-2 text-sm">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span>Face Restoration Engine: GFPGAN v1.4 + YuNet Alignment</span>
+            </span>
+            <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border flex items-center gap-1.5 ${
+              faceModelStatus?.ready
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : faceModelStatus?.downloading
+                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${faceModelStatus?.ready ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+              <span>
+                {faceModelStatus?.ready
+                  ? `Cached & Ready (${faceModelStatus.sizeMb || 325} MB)`
+                  : faceModelStatus?.downloading
+                  ? `Downloading Model (${faceModelStatus.progress}%)`
+                  : 'On-Demand Download Ready'}
+              </span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-slate-400">
+            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/60 space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase block font-bold tracking-wider">Model Architecture</span>
+              <span className="text-white font-mono text-[11px]">
+                GFPGANv1.4 (Clean StyleGAN2 Prior)
+              </span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/60 space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase block font-bold tracking-wider">Face Detector</span>
+              <span className="text-white font-mono text-[11px]">
+                YuNet 2023 (OpenCV Zoo 5-Point)
+              </span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/60 space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase block font-bold tracking-wider">Patch Resolution</span>
+              <span className="text-indigo-400 font-mono text-[11px] font-bold">
+                512 × 512 Normalized
+              </span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/60 space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase block font-bold tracking-wider">Identity Preservation</span>
+              <span className="text-white font-mono text-[11px]">
+                Adjustable 0-100% (Feather Blended)
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-400">
+            <p className="text-[11px] text-slate-400">
+              GFPGAN is stored in ephemeral memory (<code className="text-slate-300">/tmp/models/gfpgan_1.4.onnx</code>) to prevent exceeding the 250MB deployment size limit while delivering true generative facial reconstruction.
+            </p>
+            {!faceModelStatus?.ready && !faceModelStatus?.downloading && (
+              <button
+                type="button"
+                onClick={handleDownloadFaceModel}
+                disabled={isTriggeringDownload}
+                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition cursor-pointer shrink-0 self-start sm:self-auto"
+              >
+                {isTriggeringDownload ? 'Starting...' : 'Pre-Cache Model (325MB)'}
+              </button>
+            )}
           </div>
         </div>
 

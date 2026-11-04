@@ -67,6 +67,8 @@ def health():
 async def enhance_image(
     file: UploadFile = File(...),
     scale: int = Form(4),
+    face_restore: bool = Form(False),
+    face_fidelity: int = Form(70),
     x_api_key: Optional[str] = Header(None),
 ):
     try:
