@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { Navbar, NavTab } from './components/Navbar.tsx';
 import { Footer } from './components/Footer.tsx';
 import { HomePage } from './pages/HomePage.tsx';
-import { ImageEnhancerPage } from './pages/ImageEnhancerPage.tsx';
-import { VideoEnhancerPage } from './pages/VideoEnhancerPage.tsx';
-import { HistoryPage } from './pages/HistoryPage.tsx';
-import { SettingsPage } from './pages/SettingsPage.tsx';
 import { GlobalProcessingToast } from './components/GlobalProcessingToast.tsx';
+
+// Code-split tabs so the app loads instantaneously on mobile
+const ImageEnhancerPage = lazy(() => import('./pages/ImageEnhancerPage.tsx').then((m) => ({ default: m.ImageEnhancerPage })));
+const VideoEnhancerPage = lazy(() => import('./pages/VideoEnhancerPage.tsx').then((m) => ({ default: m.VideoEnhancerPage })));
+const HistoryPage = lazy(() => import('./pages/HistoryPage.tsx').then((m) => ({ default: m.HistoryPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx').then((m) => ({ default: m.SettingsPage })));
 import { fetchCapabilities, fetchHistory, checkVideoStatus } from './utils/apiClient.ts';
 import type { ProcessingJob, SystemCapabilities } from './types/index.ts';
 
@@ -188,45 +190,54 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-16">
-        {activeTab === 'home' && (
-          <HomePage setActiveTab={setActiveTab} capabilities={capabilities} />
-        )}
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
+              <div className="w-9 h-9 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-xs font-semibold text-slate-400">Loading TrueEnhance Studio...</span>
+            </div>
+          }
+        >
+          {activeTab === 'home' && (
+            <HomePage setActiveTab={setActiveTab} capabilities={capabilities} />
+          )}
 
-        {activeTab === 'image' && (
-          <ImageEnhancerPage
-            onJobCompleted={handleJobCompleted}
-            capabilities={capabilities}
-            activeGlobalJob={globalActiveJob}
-            onStartGlobalJob={handleStartGlobalJob}
-            onUpdateGlobalJob={handleUpdateGlobalJob}
-          />
-        )}
+          {activeTab === 'image' && (
+            <ImageEnhancerPage
+              onJobCompleted={handleJobCompleted}
+              capabilities={capabilities}
+              activeGlobalJob={globalActiveJob}
+              onStartGlobalJob={handleStartGlobalJob}
+              onUpdateGlobalJob={handleUpdateGlobalJob}
+            />
+          )}
 
-        {activeTab === 'video' && (
-          <VideoEnhancerPage
-            onJobCompleted={handleJobCompleted}
-            capabilities={capabilities}
-            activeGlobalJob={globalActiveJob}
-            onStartGlobalJob={handleStartGlobalJob}
-            onUpdateGlobalJob={handleUpdateGlobalJob}
-          />
-        )}
+          {activeTab === 'video' && (
+            <VideoEnhancerPage
+              onJobCompleted={handleJobCompleted}
+              capabilities={capabilities}
+              activeGlobalJob={globalActiveJob}
+              onStartGlobalJob={handleStartGlobalJob}
+              onUpdateGlobalJob={handleUpdateGlobalJob}
+            />
+          )}
 
-        {activeTab === 'history' && (
-          <HistoryPage
-            history={history}
-            onRefreshHistory={handleRefreshHistory}
-            setActiveTab={setActiveTab}
-          />
-        )}
+          {activeTab === 'history' && (
+            <HistoryPage
+              history={history}
+              onRefreshHistory={handleRefreshHistory}
+              setActiveTab={setActiveTab}
+            />
+          )}
 
-        {activeTab === 'settings' && (
-          <SettingsPage
-            capabilities={capabilities}
-            onRefreshCapabilities={handleRefreshCapabilities}
-            onRefreshHistory={handleRefreshHistory}
-          />
-        )}
+          {activeTab === 'settings' && (
+            <SettingsPage
+              capabilities={capabilities}
+              onRefreshCapabilities={handleRefreshCapabilities}
+              onRefreshHistory={handleRefreshHistory}
+            />
+          )}
+        </Suspense>
       </main>
 
       {/* Global Background Processing Toast with Live Progress Bar */}

@@ -22,7 +22,7 @@ import { BeforeAfterSlider } from '../components/BeforeAfterSlider.tsx';
 import { VideoComparePlayer } from '../components/VideoComparePlayer.tsx';
 import { formatBytes } from '../utils/enhancerLogic.ts';
 import { deleteHistoryJob, clearAllHistory } from '../utils/apiClient.ts';
-import { triggerDirectDownload, shareMediaToPhone, saveOrDownloadToPhone } from '../utils/mobileDownload.ts';
+import { exportMediaToPhone } from '../utils/mobileDownload.ts';
 import type { ProcessingJob } from '../types/index.ts';
 
 interface HistoryPageProps {
@@ -290,58 +290,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                         <span>Preview</span>
                       </button>
 
-                      {isImage ? (
-                        <>
-                          <button
-                            onClick={() => triggerDirectDownload(
-                              `/api/download/${job.id}?format=jpg`,
-                              `${job.originalName.replace(/\.[^/.]+$/, '')}_enhanced.jpg`
-                            )}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
-                            title="Download JPG (compact ~500KB - phone gallery ready)"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Download JPG</span>
-                          </button>
-
-                          <button
-                            onClick={() => triggerDirectDownload(
-                              `/api/download/${job.id}?format=png`,
-                              `${job.originalName.replace(/\.[^/.]+$/, '')}_enhanced.png`
-                            )}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700 transition cursor-pointer"
-                            title="Download PNG (uncompressed)"
-                          >
-                            <Download className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>PNG</span>
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => triggerDirectDownload(
-                            `/api/download/${job.id}`,
-                            `${job.originalName.replace(/\.[^/.]+$/, '')}_enhanced.mp4`
-                          )}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
-                          title="Download MP4 video"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Download MP4</span>
-                        </button>
-                      )}
-
                       <button
-                        onClick={() => shareMediaToPhone(
-                          `/api/download/${job.id}${isImage ? '?format=jpg' : ''}`,
-                          `${job.originalName.replace(/\.[^/.]+$/, '')}_enhanced.${isImage ? 'jpg' : 'mp4'}`,
-                          isImage ? 'image/jpeg' : 'video/mp4',
-                          `TrueEnhance AI ${isImage ? 'Image' : 'Video'}`
-                        )}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-slate-800 transition cursor-pointer"
-                        title="Share via WhatsApp, Drive, etc."
-                        aria-label="Share"
+                        onClick={() => exportMediaToPhone(job.id, job.originalName, job.type)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
+                        title="Export and save directly to phone gallery and file manager"
                       >
-                        <Smartphone className="w-4 h-4" />
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Export</span>
                       </button>
                     </>
                   )}
@@ -410,14 +365,12 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => triggerDirectDownload(
-                    `/api/download/${previewJob.id}${previewJob.type === 'image' ? '?format=jpg' : ''}`,
-                    `${previewJob.originalName.replace(/\.[^/.]+$/, '')}_enhanced.${previewJob.type === 'image' ? 'jpg' : 'mp4'}`
-                  )}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                  onClick={() => exportMediaToPhone(previewJob.id, previewJob.originalName, previewJob.type)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer active:scale-95"
+                  title="Export and save directly to phone gallery and file manager"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {previewJob.type === 'image' ? 'JPG' : 'MP4'}</span>
+                  <span>Export (Save to Gallery)</span>
                 </button>
                 <button
                   onClick={() => setPreviewJob(null)}

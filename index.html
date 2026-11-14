@@ -17,9 +17,104 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
+    <script>
+      // Vite HMR mock & error filter for Cloud Run preview environments
+      (function() {
+        // Filter console errors regarding vite websocket
+        const origConsoleError = console.error;
+        console.error = function(...args) {
+          const msg = args.map(a => String(a?.message || a)).join(' ');
+          if (msg.includes('WebSocket') || msg.includes('[vite]') || msg.includes('vite-hmr')) {
+            return;
+          }
+          origConsoleError.apply(console, args);
+        };
+
+        // Window error guards
+        window.addEventListener('unhandledrejection', function(e) {
+          const reason = String(e?.reason?.message || e?.reason || '');
+          if (reason.includes('WebSocket') || reason.includes('vite-hmr') || reason.includes('[vite]')) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, true);
+        window.addEventListener('error', function(e) {
+          const msg = String(e?.message || e?.error?.message || '');
+          if (msg.includes('WebSocket') || msg.includes('vite-hmr') || msg.includes('[vite]')) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, true);
+
+        // Mock WebSocket specifically for Vite HMR connections
+        if (typeof window !== 'undefined' && window.WebSocket) {
+          const OriginalWebSocket = window.WebSocket;
+          function ViteSafeWebSocket(url, protocols) {
+            const isViteHmr = protocols === 'vite-hmr' || protocols === 'vite-ping' || 
+              (Array.isArray(protocols) && (protocols.includes('vite-hmr') || protocols.includes('vite-ping'))) ||
+              (typeof url === 'string' && (url.includes('token=') && url.includes('24678')));
+
+            if (isViteHmr) {
+              const listeners = {};
+              const fakeWs = {
+                url: String(url),
+                readyState: 1, // WebSocket.OPEN
+                protocol: Array.isArray(protocols) ? protocols[0] : (protocols || 'vite-hmr'),
+                binaryType: 'blob',
+                bufferedAmount: 0,
+                extensions: '',
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+                addEventListener: function(event, callback) {
+                  listeners[event] = listeners[event] || [];
+                  listeners[event].push(callback);
+                  if (event === 'open') {
+                    setTimeout(() => {
+                      try {
+                        const ev = new Event('open');
+                        if (typeof fakeWs.onopen === 'function') fakeWs.onopen(ev);
+                        if (typeof callback === 'function') callback(ev);
+                      } catch (_) {}
+                    }, 10);
+                  }
+                },
+                removeEventListener: function(event, callback) {
+                  if (!listeners[event]) return;
+                  listeners[event] = listeners[event].filter(cb => cb !== callback);
+                },
+                dispatchEvent: function() { return true; },
+                send: function() {},
+                close: function() {
+                  fakeWs.readyState = 3;
+                }
+              };
+              return fakeWs;
+            }
+            return new OriginalWebSocket(url, protocols);
+          }
+          ViteSafeWebSocket.prototype = OriginalWebSocket.prototype;
+          ViteSafeWebSocket.CONNECTING = 0;
+          ViteSafeWebSocket.OPEN = 1;
+          ViteSafeWebSocket.CLOSING = 2;
+          ViteSafeWebSocket.CLOSED = 3;
+          window.WebSocket = ViteSafeWebSocket;
+        }
+      })();
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="background-color:#020617;color:#f1f5f9;margin:0;font-family:system-ui,-apple-system,sans-serif;">
+    <div id="root">
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#020617;">
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#06b6d4,#4f46e5);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(6,182,212,0.25);">
+          <div style="width:20px;height:20px;border:3px solid #020617;border-top-color:transparent;border-radius:50%;animation:te-spin 0.8s linear infinite;"></div>
+        </div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:-0.01em;color:#f8fafc;">TrueEnhance AI Studio</div>
+        <div style="font-size:12px;color:#94a3b8;">Starting AI Engines...</div>
+      </div>
+      <style>@keyframes te-spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

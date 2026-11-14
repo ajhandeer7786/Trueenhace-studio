@@ -1,5 +1,6 @@
 /**
- * Mobile-friendly media download and phone storage saving helper
+ * Mobile-friendly media export and phone storage saving helper
+ * Triggers a clean single-tap download saved directly to Phone Downloads / Gallery / File Manager.
  */
 
 export function isMobileDevice(): boolean {
@@ -9,21 +10,10 @@ export function isMobileDevice(): boolean {
   );
 }
 
-export function canNativeShareFiles(): boolean {
-  if (typeof navigator === 'undefined' || !navigator.share || !navigator.canShare) {
-    return false;
-  }
-  try {
-    const testFile = new File(['test'], 'test.txt', { type: 'text/plain' });
-    return navigator.canShare({ files: [testFile] });
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Triggers clean direct browser file download to phone/desktop storage
- * Avoids target="_blank" which triggers popup blockers in Android Chrome.
+ * Triggers clean direct browser file download to phone/desktop storage.
+ * Avoids target="_blank" which triggers popup blockers in Android Chrome,
+ * and avoids double-downloading into JS memory.
  */
 export function triggerDirectDownload(url: string, filename?: string): void {
   if (typeof document === 'undefined') return;
@@ -32,63 +22,53 @@ export function triggerDirectDownload(url: string, filename?: string): void {
   if (filename) {
     link.setAttribute('download', filename);
   }
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   setTimeout(() => {
     try {
       document.body.removeChild(link);
     } catch {}
-  }, 300);
+  }, 500);
 }
 
 /**
- * Native phone share drawer (WhatsApp, Drive, Bluetooth, etc.)
+ * Unified single "Export" action for the entire app.
+ * Direct-saves enhanced JPG photo or MP4 video to phone Gallery & File Manager (Downloads folder).
+ */
+export async function exportMediaToPhone(
+  jobIdOrUrl: string,
+  originalName: string,
+  type: 'image' | 'video' = 'image'
+): Promise<{ success: boolean; method: 'download' }> {
+  const baseName = originalName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'enhanced';
+  const isImage = type === 'image';
+  const extension = isImage ? 'jpg' : 'mp4';
+  const filename = `${baseName}_enhanced.${extension}`;
+
+  const downloadUrl = jobIdOrUrl.startsWith('/') || jobIdOrUrl.startsWith('http')
+    ? jobIdOrUrl
+    : `/api/download/${jobIdOrUrl}${isImage ? '?format=jpg' : ''}`;
+
+  triggerDirectDownload(downloadUrl, filename);
+  return { success: true, method: 'download' };
+}
+
+/**
+ * Compatibility exports
  */
 export async function shareMediaToPhone(
   downloadUrl: string,
-  filename: string,
-  mimeType: string,
-  title: string = 'Enhanced Media'
-): Promise<{ success: boolean; error?: string }> {
-  if (!canNativeShareFiles()) {
-    triggerDirectDownload(downloadUrl, filename);
-    return { success: true };
-  }
-  try {
-    const response = await fetch(downloadUrl);
-    if (!response.ok) throw new Error('Could not load file for sharing');
-    const blob = await response.blob();
-    const file = new File([blob], filename, { type: mimeType });
-
-    if (navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title,
-        text: `TrueEnhance AI: ${filename}`,
-      });
-      return { success: true };
-    }
-  } catch (err: any) {
-    if (err?.name === 'AbortError') {
-      return { success: false, error: 'User cancelled share' };
-    }
-    // Fallback to direct download
-    triggerDirectDownload(downloadUrl, filename);
-    return { success: true };
-  }
+  filename: string
+): Promise<{ success: boolean }> {
   triggerDirectDownload(downloadUrl, filename);
   return { success: true };
 }
 
-/**
- * Mobile-friendly media download and phone storage saving helper
- */
 export async function saveOrDownloadToPhone(
   downloadUrl: string,
-  filename: string,
-  mimeType: string,
-  title: string = 'Enhanced Media'
-): Promise<{ method: 'share' | 'download'; success: boolean }> {
+  filename: string
+): Promise<{ method: 'download'; success: boolean }> {
   triggerDirectDownload(downloadUrl, filename);
   return { method: 'download', success: true };
 }

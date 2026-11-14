@@ -6,18 +6,16 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle,
-  Sliders,
-  Shield,
   Activity,
   Layers,
+  Wand2,
   Music,
   Download,
-  Smartphone,
 } from 'lucide-react';
 import { VideoComparePlayer } from '../components/VideoComparePlayer.tsx';
 import { formatBytes, validateVideoFile } from '../utils/enhancerLogic.ts';
 import { startVideoEnhance, checkVideoStatus, generateSampleAsset } from '../utils/apiClient.ts';
-import { triggerDirectDownload, shareMediaToPhone, saveOrDownloadToPhone } from '../utils/mobileDownload.ts';
+import { exportMediaToPhone } from '../utils/mobileDownload.ts';
 import type {
   ProcessingJob,
   VideoResolution,
@@ -53,14 +51,16 @@ export const VideoEnhancerPage: React.FC<VideoEnhancerPageProps> = ({
     duration?: number;
   } | null>(null);
 
-  // Options state
+  // Options state - Simplified AI Auto Modes
   const [resolution, setResolution] = useState<VideoResolution>('1080p');
+  const [aiAutoEnhance, setAiAutoEnhance] = useState<boolean>(true);
   const [stabilize, setStabilize] = useState<boolean>(true);
   const [denoise, setDenoise] = useState<boolean>(true);
   const [sharpen, setSharpen] = useState<boolean>(true);
   const [fps, setFps] = useState<VideoFps>('original');
   const [preserveAudio, setPreserveAudio] = useState<boolean>(true);
-  const [quality, setQuality] = useState<'fast' | 'balanced' | 'high'>('balanced');
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [quality] = useState<'fast' | 'balanced' | 'high'>('balanced');
 
   // Job & Progress tracking state
   const [currentJob, setCurrentJob] = useState<ProcessingJob | null>(
@@ -169,9 +169,9 @@ export const VideoEnhancerPage: React.FC<VideoEnhancerPageProps> = ({
 
     const options: VideoEnhanceOptions = {
       resolution,
-      stabilize,
-      denoise,
-      sharpen,
+      stabilize: aiAutoEnhance ? stabilize : false,
+      denoise: aiAutoEnhance ? denoise : false,
+      sharpen: aiAutoEnhance ? sharpen : false,
       fps,
       preserveAudio,
       quality,
@@ -330,31 +330,34 @@ export const VideoEnhancerPage: React.FC<VideoEnhancerPageProps> = ({
             )}
           </div>
 
-          {/* Video Options Panel */}
-          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-5">
+          {/* Simplified AI Auto Video Options Panel */}
+          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-indigo-400" />
-                <span>Video Enhancement Controls</span>
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>AI Video Enhancement Settings</span>
               </h2>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-semibold flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-cyan-400" />
-                Real-ESRGAN AI
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                AI Auto Active
               </span>
             </div>
 
-            {/* AI Engine Notice */}
-            <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
-              <span className="font-semibold text-slate-200">Neural Pipeline: </span>
-              Every frame is extracted and processed through the pretrained Real-ESRGAN ONNX neural network, then re-encoded via FFmpeg with native 48kHz audio track synchronization.
-            </div>
+            {/* 1. AI Auto UHD Upscale */}
+            <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-indigo-500/15 text-indigo-400">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">AI Auto UHD Upscale</span>
+                  <span className="text-[11px] text-slate-400 block leading-snug">
+                    Real-ESRGAN neural frame upscaling with synced original audio
+                  </span>
+                </div>
+              </div>
 
-            {/* Target Resolution */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300 block">
-                Target Resolution
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                 {(['original', '1080p', '2k', '4k'] as const).map((res) => (
                   <button
                     key={res}
@@ -363,7 +366,7 @@ export const VideoEnhancerPage: React.FC<VideoEnhancerPageProps> = ({
                     className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center cursor-pointer ${
                       resolution === res
                         ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-md shadow-indigo-500/10'
-                        : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:border-slate-700'
+                        : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700'
                     }`}
                   >
                     <span className="uppercase">{res}</span>
@@ -375,108 +378,120 @@ export const VideoEnhancerPage: React.FC<VideoEnhancerPageProps> = ({
               </div>
             </div>
 
-            {/* Video Stabilization (vid.stab) */}
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-              <div>
-                <label htmlFor="stabilize-toggle" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                  <span>Camera Shake Stabilization</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-400 font-mono">vid.stab</span>
-                </label>
-                <span className="text-[11px] text-slate-500 block">
-                  2-pass motion estimation &amp; affine transform compensation
-                </span>
-              </div>
-              <input
-                id="stabilize-toggle"
-                type="checkbox"
-                checked={stabilize}
-                onChange={(e) => setStabilize(e.target.checked)}
-                className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
-              />
-            </div>
-
-            {/* Denoise & Sharpen */}
-            <div className="pt-2 border-t border-slate-800/80 grid grid-cols-2 gap-4">
+            {/* 2. AI Auto Enhance */}
+            <div className={`p-4 rounded-xl border transition-all ${aiAutoEnhance ? 'bg-emerald-950/20 border-emerald-500/40 shadow-sm' : 'bg-slate-950/40 border-slate-800/80'}`}>
               <div className="flex items-center justify-between">
-                <div>
-                  <label htmlFor="video-denoise-toggle" className="text-xs font-semibold text-slate-300 block cursor-pointer">
-                    3D Denoising
-                  </label>
-                  <span className="text-[10px] text-slate-500 block">hqdn3d filter</span>
+                <div className="flex items-start gap-3 cursor-pointer select-none" onClick={() => setAiAutoEnhance(!aiAutoEnhance)}>
+                  <div className={`p-2 rounded-lg mt-0.5 ${aiAutoEnhance ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'}`}>
+                    <Wand2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">AI Auto Enhance</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Auto Clean
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
+                      Stabilizes camera shake, removes grain &amp; sharpens video frames automatically
+                    </span>
+                  </div>
                 </div>
                 <input
-                  id="video-denoise-toggle"
+                  id="video-auto-enhance-toggle"
                   type="checkbox"
-                  checked={denoise}
-                  onChange={(e) => setDenoise(e.target.checked)}
-                  className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <label htmlFor="video-sharpen-toggle" className="text-xs font-semibold text-slate-300 block cursor-pointer">
-                    Edge Sharpen
-                  </label>
-                  <span className="text-[10px] text-slate-500 block">Unsharp mask</span>
-                </div>
-                <input
-                  id="video-sharpen-toggle"
-                  type="checkbox"
-                  checked={sharpen}
-                  onChange={(e) => setSharpen(e.target.checked)}
-                  className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
+                  checked={aiAutoEnhance}
+                  onChange={(e) => setAiAutoEnhance(e.target.checked)}
+                  className="w-5 h-5 accent-emerald-500 cursor-pointer rounded ml-2"
                 />
               </div>
             </div>
 
-            {/* Frame Rate Interpolation */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-2">
-              <label className="text-xs font-semibold text-slate-300 block">
-                Motion Frame Rate Interpolation
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'original', label: 'Original FPS' },
-                  { id: 30, label: '30 FPS Smooth' },
-                  { id: 60, label: '60 FPS Fluid' },
-                ].map((item) => (
-                  <button
-                    key={String(item.id)}
-                    type="button"
-                    onClick={() => setFps(item.id as any)}
-                    className={`py-2 px-2 rounded-xl border text-xs font-semibold transition cursor-pointer text-center ${
-                      fps === item.id
-                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50'
-                        : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Optional Advanced Controls */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-[11px] text-slate-400 hover:text-slate-200 transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>{showAdvanced ? '− Hide Advanced Video Settings' : '+ Show Advanced Video Settings'}</span>
+              </button>
 
-            {/* Audio Preservation */}
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Music className="w-4 h-4 text-indigo-400 shrink-0" />
-                <div>
-                  <label htmlFor="audio-toggle" className="text-xs font-semibold text-slate-300 block cursor-pointer">
-                    Preserve Audio Synchronization
-                  </label>
-                  <span className="text-[11px] text-slate-500 block">
-                    Zero drift AAC audio track re-multiplexing
-                  </span>
+              {showAdvanced && (
+                <div className="mt-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="stabilize-toggle" className="text-slate-300 font-medium cursor-pointer">
+                      Camera Shake Stabilization (vid.stab)
+                    </label>
+                    <input
+                      id="stabilize-toggle"
+                      type="checkbox"
+                      checked={stabilize}
+                      onChange={(e) => setStabilize(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                    <label className="flex items-center justify-between cursor-pointer text-slate-300">
+                      <span>3D Denoising</span>
+                      <input
+                        type="checkbox"
+                        checked={denoise}
+                        onChange={(e) => setDenoise(e.target.checked)}
+                        className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between cursor-pointer text-slate-300">
+                      <span>Edge Sharpen</span>
+                      <input
+                        type="checkbox"
+                        checked={sharpen}
+                        onChange={(e) => setSharpen(e.target.checked)}
+                        className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                    <span className="text-[11px] font-semibold text-slate-300 block">Frame Rate (FPS)</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'original', label: 'Original' },
+                        { id: 30, label: '30 FPS' },
+                        { id: 60, label: '60 FPS' },
+                      ].map((item) => (
+                        <button
+                          key={String(item.id)}
+                          type="button"
+                          onClick={() => setFps(item.id as any)}
+                          className={`py-1.5 px-2 rounded-lg border text-[11px] font-semibold transition cursor-pointer text-center ${
+                            fps === item.id
+                              ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                    <label htmlFor="audio-toggle" className="text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                      <Music className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Preserve Synced Audio</span>
+                    </label>
+                    <input
+                      id="audio-toggle"
+                      type="checkbox"
+                      checked={preserveAudio}
+                      onChange={(e) => setPreserveAudio(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
+                    />
+                  </div>
                 </div>
-              </div>
-              <input
-                id="audio-toggle"
-                type="checkbox"
-                checked={preserveAudio}
-                onChange={(e) => setPreserveAudio(e.target.checked)}
-                className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
-              />
+              )}
             </div>
 
             {/* Start Processing Action */}
@@ -540,31 +555,18 @@ export const VideoEnhancerPage: React.FC<VideoEnhancerPageProps> = ({
                   <span className="text-emerald-400/80 hidden sm:inline">• Audio Synchronized</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div>
                   <button
-                    onClick={() => triggerDirectDownload(
-                      `/api/download/${currentJob.id}`,
-                      `${currentJob.originalName.replace(/\.[^/.]+$/, '')}_enhanced.mp4`
+                    onClick={() => exportMediaToPhone(
+                      currentJob.id,
+                      currentJob.originalName,
+                      'video'
                     )}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition shadow-sm cursor-pointer active:scale-95"
-                    title="Directly download MP4 video with synced audio"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs sm:text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-95"
+                    title="Export and save video directly to phone gallery and file manager"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download MP4 Video</span>
-                  </button>
-
-                  <button
-                    onClick={() => shareMediaToPhone(
-                      `/api/download/${currentJob.id}`,
-                      `${currentJob.originalName.replace(/\.[^/.]+$/, '')}_enhanced.mp4`,
-                      'video/mp4',
-                      'TrueEnhance AI Enhanced Video'
-                    )}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700 transition cursor-pointer"
-                    title="Share video to WhatsApp, Drive, etc."
-                  >
-                    <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Share</span>
+                    <Download className="w-4 h-4" />
+                    <span>Export (Save to Gallery / Storage)</span>
                   </button>
                 </div>
               </div>

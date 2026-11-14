@@ -12,7 +12,7 @@ import {
   Video,
   Image as ImageIcon,
 } from 'lucide-react';
-import { saveOrDownloadToPhone } from '../utils/mobileDownload.ts';
+import { exportMediaToPhone } from '../utils/mobileDownload.ts';
 import type { ProcessingJob } from '../types/index.ts';
 
 interface GlobalProcessingToastProps {
@@ -42,10 +42,10 @@ export const GlobalProcessingToast: React.FC<GlobalProcessingToastProps> = ({
     return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
 
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleExport = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (job.outputUrl) {
-      saveOrDownloadToPhone(job.id, job.originalName, job.type);
+      exportMediaToPhone(job.id, job.originalName, job.type);
     }
   };
 
@@ -198,11 +198,12 @@ export const GlobalProcessingToast: React.FC<GlobalProcessingToastProps> = ({
 
         {isCompleted && (
           <button
-            onClick={handleDownload}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 text-xs font-bold shadow-md shadow-cyan-500/20 transition cursor-pointer"
+            onClick={handleExport}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-bold shadow-md shadow-emerald-500/20 transition cursor-pointer"
+            title="Export and save to gallery or storage"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Download</span>
+            <span>Export</span>
           </button>
         )}
       </div>

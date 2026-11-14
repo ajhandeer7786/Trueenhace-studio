@@ -1,16 +1,13 @@
 // TrueEnhance AI Studio Service Worker
-const CACHE_NAME = 'trueenhance-v1';
+const CACHE_NAME = 'trueenhance-v2';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
   '/manifest.json',
   '/icon.svg',
   '/favicon.png',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
-  '/apple-touch-icon.png'
+  '/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -39,37 +36,43 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass through non-GET and API / upload / stream requests directly to network
+  const url = event.request.url;
+
+  // Never intercept non-GET, API calls, Vite dev modules, or source files
   if (
     event.request.method !== 'GET' ||
-    event.request.url.includes('/api/') ||
-    event.request.url.includes('/socket.io/')
+    url.includes('/api/') ||
+    url.includes('/@vite/') ||
+    url.includes('/@react-refresh') ||
+    url.includes('/src/') ||
+    url.includes('/node_modules/') ||
+    url.includes('?v=') ||
+    url.includes('?t=')
   ) {
+    return;
+  }
+
+  // Only cache static app shell icons/manifest; keep HTML/navigation network-first
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  const isStaticIconOrAsset = STATIC_ASSETS.some((asset) => url.endsWith(asset));
+  if (!isStaticIconOrAsset) {
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      if (cached) {
-        // Fetch fresh copy in background for staleness
-        fetch(event.request).then((response) => {
-          if (response && response.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response));
-          }
-        }).catch(() => {});
-        return cached;
-      }
-      return fetch(event.request).then((response) => {
+      return cached || fetch(event.request).then((response) => {
         if (response && response.status === 200 && response.type === 'basic') {
           const toCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, toCache));
         }
         return response;
-      }).catch(() => {
-        // Offline fallback for navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
       });
     })
   );

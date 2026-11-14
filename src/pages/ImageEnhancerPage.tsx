@@ -12,11 +12,12 @@ import {
   RefreshCw,
   FileText,
   Smartphone,
+  Layers,
 } from 'lucide-react';
 import { BeforeAfterSlider } from '../components/BeforeAfterSlider.tsx';
 import { formatBytes, validateImageFile } from '../utils/enhancerLogic.ts';
 import { enhanceImage, generateSampleAsset } from '../utils/apiClient.ts';
-import { triggerDirectDownload, shareMediaToPhone, saveOrDownloadToPhone } from '../utils/mobileDownload.ts';
+import { exportMediaToPhone } from '../utils/mobileDownload.ts';
 import type {
   ProcessingJob,
   ImageScale,
@@ -50,14 +51,16 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
     name?: string;
   } | null>(null);
 
-  // Options state
-  const [scale, setScale] = useState<ImageScale>(4);
-  const [denoise, setDenoise] = useState<boolean>(false);
+  // Options state - Simplified AI Auto Modes
+  const [scale, setScale] = useState<ImageScale>(2);
+  const [faceRestore, setFaceRestore] = useState<boolean>(true);
+  const [faceFidelity, setFaceFidelity] = useState<number>(75);
+  const [aiAutoEnhance, setAiAutoEnhance] = useState<boolean>(true);
+  const [denoise, setDenoise] = useState<boolean>(true);
   const [denoiseLevel, setDenoiseLevel] = useState<number>(2);
   const [deblur, setDeblur] = useState<boolean>(true);
   const [deblurLevel, setDeblurLevel] = useState<number>(3);
-  const [faceRestore, setFaceRestore] = useState<boolean>(true);
-  const [faceFidelity, setFaceFidelity] = useState<number>(70);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [faceModel, setFaceModel] = useState<'gfpgan-v1.4' | 'codeformer' | 'auto'>('auto');
   const [engine, setEngine] = useState<'auto' | 'gfpgan' | 'portrait-restorer' | 'realesrgan-x4plus' | 'realesrgan-compact' | 'realesrgan' | 'gemini-ai' | 'neural-lanczos'>('auto');
 
@@ -159,9 +162,9 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
 
     const options: ImageEnhanceOptions = {
       scale,
-      denoise,
+      denoise: aiAutoEnhance ? denoise : false,
       denoiseLevel,
-      deblur,
+      deblur: aiAutoEnhance ? deblur : false,
       deblurLevel,
       faceRestore,
       faceFidelity,
@@ -304,34 +307,100 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
             )}
           </div>
 
-          {/* Enhancement Controls Panel */}
-          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-5">
-            <div className="flex items-center justify-between">
+          {/* Simplified AI Auto Controls Panel */}
+          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-4">
+            <div className="flex items-center justify-between pb-1">
               <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-cyan-400" />
-                <span>Enhancement Settings</span>
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>AI Enhancement Settings</span>
               </h2>
-              <span className="text-[11px] text-cyan-400 font-mono">Real Inference</span>
+              <span className="text-[11px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                AI Auto Active
+              </span>
             </div>
 
-            {/* Upscale Factor */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300 block">
-                Target Upscale Multiplier
-              </label>
-              <div className="grid grid-cols-2 gap-2">
+            {/* 1. AI Auto Face Restoration */}
+            <div className={`p-4 rounded-xl border transition-all ${faceRestore ? 'bg-indigo-950/20 border-indigo-500/40 shadow-sm' : 'bg-slate-950/40 border-slate-800/80'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3 cursor-pointer select-none" onClick={() => setFaceRestore(!faceRestore)}>
+                  <div className={`p-2 rounded-lg mt-0.5 ${faceRestore ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-500'}`}>
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">AI Auto Face Restoration</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        MagicHour GFPGAN
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
+                      Reconstructs eyes, pupils, lips, skin textures &amp; preserves natural likeness
+                    </span>
+                  </div>
+                </div>
+                <input
+                  id="face-toggle"
+                  type="checkbox"
+                  checked={faceRestore}
+                  onChange={(e) => setFaceRestore(e.target.checked)}
+                  className="w-5 h-5 accent-indigo-500 cursor-pointer rounded ml-2"
+                />
+              </div>
+
+              {faceRestore && (
+                <div className="mt-3 pt-3 border-t border-indigo-500/20 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-300 font-medium">Likeness Preservation:</span>
+                    <span className="font-mono font-bold text-indigo-400">{faceFidelity}% Natural</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="90"
+                    step="5"
+                    value={faceFidelity}
+                    onChange={(e) => setFaceFidelity(Number(e.target.value))}
+                    className="w-full h-1.5 bg-slate-800 rounded accent-indigo-400 cursor-pointer"
+                    aria-label="Face fidelity balance"
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Reconstruction</span>
+                    <span>Balanced</span>
+                    <span>High Likeness</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. AI Auto UHD Upscale */}
+            <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">AI Auto UHD Upscale</span>
+                    <span className="text-[11px] text-slate-400 block leading-snug">
+                      Real-ESRGAN super-resolution to ultra-crisp resolution
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setScale(2)}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex flex-col items-center cursor-pointer ${
                     scale === 2
                       ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md shadow-cyan-500/10'
-                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:border-slate-700'
+                      : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <span className="text-sm font-black">2× Scale</span>
+                  <span className="text-sm font-black">2× UHD Upscale</span>
                   <span className="text-[10px] font-normal text-slate-400">
-                    {imageMetadata?.width ? `${imageMetadata.width * 2} × ${imageMetadata.height! * 2}` : 'Double Resolution'}
+                    {imageMetadata?.width ? `${imageMetadata.width * 2} × ${imageMetadata.height! * 2} (Fast)` : 'Double Resolution (Fast)'}
                   </span>
                 </button>
 
@@ -341,151 +410,78 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
                   className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex flex-col items-center cursor-pointer ${
                     scale === 4
                       ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md shadow-cyan-500/10'
-                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:border-slate-700'
+                      : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <span className="text-sm font-black">4× Super-Res</span>
+                  <span className="text-sm font-black">4× Super UHD</span>
                   <span className="text-[10px] font-normal text-slate-400">
-                    {imageMetadata?.width ? `${imageMetadata.width * 4} × ${imageMetadata.height! * 4}` : 'Quadruple Resolution'}
+                    {imageMetadata?.width ? `${imageMetadata.width * 4} × ${imageMetadata.height! * 4} (Max Detail)` : 'Quadruple Resolution (Max Detail)'}
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* Deblur & Sharpening */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+            {/* 3. AI Auto Enhance */}
+            <div className={`p-4 rounded-xl border transition-all ${aiAutoEnhance ? 'bg-emerald-950/20 border-emerald-500/40 shadow-sm' : 'bg-slate-950/40 border-slate-800/80'}`}>
               <div className="flex items-center justify-between">
-                <label htmlFor="deblur-toggle" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                  <span>Deblur &amp; Edge Sharpening</span>
-                </label>
-                <input
-                  id="deblur-toggle"
-                  type="checkbox"
-                  checked={deblur}
-                  onChange={(e) => setDeblur(e.target.checked)}
-                  className="w-4 h-4 accent-cyan-400 cursor-pointer rounded"
-                />
-              </div>
-              {deblur && (
-                <div className="flex items-center gap-3 pl-2">
-                  <span className="text-[10px] text-slate-400 font-medium">Strength:</span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={deblurLevel}
-                    onChange={(e) => setDeblurLevel(Number(e.target.value))}
-                    className="flex-1 h-1 bg-slate-800 rounded accent-cyan-400 cursor-pointer"
-                    aria-label="Deblur strength"
-                  />
-                  <span className="text-[11px] font-mono text-cyan-400 w-5 text-right">{deblurLevel}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Denoise */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <label htmlFor="denoise-toggle" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                  <span>Denoise &amp; Artifact Removal</span>
-                </label>
-                <input
-                  id="denoise-toggle"
-                  type="checkbox"
-                  checked={denoise}
-                  onChange={(e) => setDenoise(e.target.checked)}
-                  className="w-4 h-4 accent-cyan-400 cursor-pointer rounded"
-                />
-              </div>
-              {denoise && (
-                <div className="flex items-center gap-3 pl-2">
-                  <span className="text-[10px] text-slate-400 font-medium">Strength:</span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={denoiseLevel}
-                    onChange={(e) => setDenoiseLevel(Number(e.target.value))}
-                    className="flex-1 h-1 bg-slate-800 rounded accent-cyan-400 cursor-pointer"
-                    aria-label="Denoise strength"
-                  />
-                  <span className="text-[11px] font-mono text-cyan-400 w-5 text-right">{denoiseLevel}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Genuine Face Restoration (GFPGAN Prior) */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label htmlFor="face-toggle" className="text-xs font-semibold text-slate-200 block cursor-pointer flex items-center gap-1.5">
-                    <span>GFPGAN Face &amp; Portrait AI Restoration</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      MagicHour Quality
-                    </span>
-                  </label>
-                  <span className="text-[11px] text-slate-400 block mt-0.5">
-                    Reconstructs eyes, pupils, lips, skin pores, and facial contours
-                  </span>
-                </div>
-                <input
-                  id="face-toggle"
-                  type="checkbox"
-                  checked={faceRestore}
-                  onChange={(e) => setFaceRestore(e.target.checked)}
-                  className="w-4 h-4 accent-indigo-400 cursor-pointer rounded"
-                />
-              </div>
-
-              {faceRestore && (
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-300">
-                      Identity Preservation vs Restoration:
-                    </span>
-                    <span className="font-mono text-xs font-bold text-indigo-400">
-                      {faceFidelity}% Likeness
+                <div className="flex items-start gap-3 cursor-pointer select-none" onClick={() => setAiAutoEnhance(!aiAutoEnhance)}>
+                  <div className={`p-2 rounded-lg mt-0.5 ${aiAutoEnhance ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'}`}>
+                    <Wand2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">AI Auto Enhance</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Auto Clean
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
+                      Removes compression noise, eliminates camera blur &amp; sharpens details
                     </span>
                   </div>
-                  <input
-                    type="range"
-                    min="20"
-                    max="95"
-                    step="5"
-                    value={faceFidelity}
-                    onChange={(e) => setFaceFidelity(Number(e.target.value))}
-                    className="w-full h-1 bg-slate-800 rounded accent-indigo-400 cursor-pointer"
-                    aria-label="Face restoration fidelity balance"
-                  />
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Maximum Sharpening (Heavy Blur)</span>
-                    <span className="text-indigo-300 font-semibold">
-                      {faceFidelity >= 80 ? 'Subtle (High Likeness)' : faceFidelity >= 60 ? 'MagicHour Balanced' : 'Strong Reconstruction'}
-                    </span>
-                    <span>Preserve Identity (Natural Skin)</span>
-                  </div>
                 </div>
-              )}
+                <input
+                  id="auto-enhance-toggle"
+                  type="checkbox"
+                  checked={aiAutoEnhance}
+                  onChange={(e) => setAiAutoEnhance(e.target.checked)}
+                  className="w-5 h-5 accent-emerald-500 cursor-pointer rounded ml-2"
+                />
+              </div>
             </div>
 
-            {/* AI Engine Selection */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
-              <label htmlFor="engine-select" className="text-xs font-semibold text-slate-300 block">
-                Super-Resolution Neural Engine
-              </label>
-              <select
-                id="engine-select"
-                value={engine}
-                onChange={(e) => setEngine(e.target.value as any)}
-                className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 cursor-pointer"
+            {/* Optional Advanced Settings */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-[11px] text-slate-400 hover:text-slate-200 transition flex items-center gap-1 cursor-pointer"
               >
-                <option value="auto">Auto-Select (Real-ESRGAN + GFPGAN Face Prior)</option>
-                <option value="gfpgan">GFPGAN v1.4 + Real-ESRGAN (MagicHour Face Restoration)</option>
-                <option value="realesrgan-x4plus">Real-ESRGAN-x4plus (Flagship 67MB RRDBNet • Maximum Scene Detail)</option>
-                <option value="realesrgan-compact">Real-ESRGAN-General-x4v3 (Compact 4.8MB • Fast)</option>
-                <option value="neural-lanczos">Lanczos3 Spatial Resizing (Non-AI Fallback)</option>
-                <option value="gemini-ai">Gemini 3.1 Flash Vision Model (Cloud AI)</option>
-              </select>
+                <span>{showAdvanced ? '− Hide Advanced Model Settings' : '+ Show Advanced Model Settings'}</span>
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-3 p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3 text-xs animate-in fade-in">
+                  <div>
+                    <label htmlFor="engine-select" className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Super-Resolution Neural Engine
+                    </label>
+                    <select
+                      id="engine-select"
+                      value={engine}
+                      onChange={(e) => setEngine(e.target.value as any)}
+                      className="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                    >
+                      <option value="auto">Auto-Select (Real-ESRGAN + GFPGAN Face Prior)</option>
+                      <option value="gfpgan">GFPGAN v1.4 + Real-ESRGAN (MagicHour Face Restoration)</option>
+                      <option value="realesrgan-x4plus">Real-ESRGAN-x4plus (Flagship 67MB RRDBNet)</option>
+                      <option value="realesrgan-compact">Real-ESRGAN-General-x4v3 (Compact 4.8MB)</option>
+                      <option value="neural-lanczos">Lanczos3 Spatial Resizing (Non-AI Fallback)</option>
+                      <option value="gemini-ai">Gemini 3.1 Flash Vision Model (Cloud AI)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Process Action Button */}
@@ -521,46 +517,18 @@ export const ImageEnhancerPage: React.FC<ImageEnhancerPageProps> = ({
                   <span className="text-emerald-400/80 hidden sm:inline">• Output ready</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* High Quality JPG Download Button (Default/Recommended for mobile gallery & WhatsApp) */}
+                <div>
                   <button
-                    onClick={() => triggerDirectDownload(
-                      `/api/download/${completedJob.id}?format=jpg`,
-                      `${completedJob.originalName.replace(/\.[^/.]+$/, '')}_enhanced.jpg`
+                    onClick={() => exportMediaToPhone(
+                      completedJob.id,
+                      completedJob.originalName,
+                      'image'
                     )}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition shadow-sm cursor-pointer active:scale-95"
-                    title="Download optimized JPG (~400-800KB) - Best for Phone Gallery & WhatsApp sharing"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs sm:text-sm transition shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-95"
+                    title="Export and save directly to phone gallery and file manager"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download JPG (Phone &amp; Gallery)</span>
-                  </button>
-
-                  {/* PNG Download Button */}
-                  <button
-                    onClick={() => triggerDirectDownload(
-                      `/api/download/${completedJob.id}?format=png`,
-                      `${completedJob.originalName.replace(/\.[^/.]+$/, '')}_enhanced.png`
-                    )}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs border border-slate-700 transition shadow-sm cursor-pointer"
-                    title="Download uncompressed PNG master file"
-                  >
-                    <Download className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>PNG</span>
-                  </button>
-
-                  {/* Native Share button */}
-                  <button
-                    onClick={() => shareMediaToPhone(
-                      `/api/download/${completedJob.id}?format=jpg`,
-                      `${completedJob.originalName.replace(/\.[^/.]+$/, '')}_enhanced.jpg`,
-                      'image/jpeg',
-                      'TrueEnhance AI Enhanced Photo'
-                    )}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700 transition cursor-pointer"
-                    title="Share directly to WhatsApp, Drive, etc."
-                  >
-                    <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Share</span>
+                    <Download className="w-4 h-4" />
+                    <span>Export (Save to Gallery / Storage)</span>
                   </button>
                 </div>
               </div>

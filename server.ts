@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
@@ -175,6 +176,7 @@ function ensureModelWeights(): void {
 async function startServer() {
   ensureModelWeights();
   const app = express();
+  app.use(compression({ threshold: 512 }));
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -1120,6 +1122,38 @@ async function startServer() {
     res.send('self.addEventListener("install", () => self.skipWaiting()); self.addEventListener("activate", (e) => e.waitUntil(clients.claim()));');
   });
 
+  // Strip multi-MB inline sourcemaps from Vite pre-bundled deps so compression delivers ~160KB instead of 3.8MB
+  const strippedDepCache = new Map<string, string>();
+  app.get('/node_modules/.vite/deps/:file', async (req, res, next) => {
+    const file = req.params.file;
+    if (!file || !file.endsWith('.js') || file.includes('..') || file.includes('/')) {
+      return next();
+    }
+    const cacheKey = `${file}:${String(req.query.v || '')}`;
+    let stripped = strippedDepCache.get(cacheKey);
+    if (!stripped) {
+      const diskPath = path.resolve(process.cwd(), 'node_modules/.vite/deps', file);
+      if (!fs.existsSync(diskPath)) {
+        return next();
+      }
+      try {
+        let content = await fs.promises.readFile(diskPath, 'utf8');
+        const marker = '\n//# sourceMappingURL=data:';
+        const idx = content.lastIndexOf(marker);
+        if (idx > 0) {
+          content = content.slice(0, idx);
+        }
+        stripped = content;
+        strippedDepCache.set(cacheKey, stripped);
+      } catch {
+        return next();
+      }
+    }
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'max-age=31536000, immutable');
+    return res.send(stripped);
+  });
+
   // Serve static public assets (PWA manifest, icons, service worker)
   app.use(express.static(path.resolve(process.cwd(), 'public')));
 
@@ -1132,7 +1166,10 @@ async function startServer() {
     });
   } else {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

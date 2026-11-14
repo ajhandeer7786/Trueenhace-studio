@@ -5,14 +5,12 @@ import {
   Volume2,
   VolumeX,
   RotateCcw,
-  Download,
   Film,
   Sparkles,
   Smartphone,
   Maximize,
 } from 'lucide-react';
 import { formatBytes, formatDuration } from '../utils/enhancerLogic.ts';
-import { saveOrDownloadToPhone } from '../utils/mobileDownload.ts';
 
 interface VideoComparePlayerProps {
   originalUrl: string;
@@ -96,22 +94,6 @@ export const VideoComparePlayer: React.FC<VideoComparePlayerProps> = ({
     }
   };
 
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-
-  const handleSaveToPhone = async () => {
-    setIsSaving(true);
-    try {
-      await saveOrDownloadToPhone(
-        downloadUrl,
-        `enhanced_video_${jobId || Date.now()}.mp4`,
-        'video/mp4',
-        'Enhanced Video'
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleFullscreen = () => {
     const targetVideo =
       activeTab === 'enhanced'
@@ -164,28 +146,6 @@ export const VideoComparePlayer: React.FC<VideoComparePlayerProps> = ({
           >
             <span>Side-by-Side</span>
           </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSaveToPhone}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
-            title="Save directly to phone camera roll or share to apps"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>{isSaving ? 'Saving to Phone...' : 'Save to Phone / Gallery'}</span>
-          </button>
-
-          <a
-            href={downloadUrl}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs border border-slate-700 transition"
-            download
-            title="Direct file download to Downloads folder"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download MP4</span>
-          </a>
         </div>
       </div>
 
